@@ -69,4 +69,3 @@ export async function handler(event) {
     };
   }
 }
-https://classy-gingersnap-554b05.netlify.app/.netlify/functions/searchRestaurants?zip=90803
