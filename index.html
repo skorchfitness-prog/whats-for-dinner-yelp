@@ -1,63 +1,30 @@
-// netlify/functions/searchrestaurants.js
-import fetch from "node-fetch";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>What’s for Dinner?</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
 
-export async function handler(event) {
-  try {
-    const apiKey = process.env.YELP_API_KEY;
-    if (!apiKey) {
-      return {
-        statusCode: 500,
-        body: JSON.stringify({ error: "Missing YELP_API_KEY" })
-      };
-    }
+  <div class="container">
+    <h1>What’s for Dinner?</h1>
 
-    const params = event.queryStringParameters || {};
-    const zip = params.zip || "";
-    const radiusMiles = Number(params.radiusMiles) || 3;
+    <div class="card">
+      <label>Add restaurants you both agree on:</label>
+      <input id="restaurantInput" placeholder="Ex: Sushi Roku, In-N-Out, Lazy Dog" />
+      <button id="addBtn">Add</button>
+    </div>
 
-    const exclude = (params.exclude || "")
-      .split(",")
-      .map(x => x.trim().toLowerCase())
-      .filter(Boolean);
+    <div class="wheelWrap">
+      <div id="wheel" class="wheel"></div>
+    </div>
 
-    if (!zip) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "Missing zip" })
-      };
-    }
+    <button id="spinBtn" class="spinBtn">SPIN</button>
 
-    const radiusMeters = Math.min(
-      40000,
-      Math.max(500, Math.round(radiusMiles * 1609.34))
-    );
+    <div id="choice" class="choice"></div>
+  </div>
 
-    const url = `https://api.yelp.com/v3/businesses/search?location=${zip}&radius=${radiusMeters}&categories=restaurants&limit=50`;
-
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${apiKey}` }
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      return { statusCode: response.status, body: text };
-    }
-
-    const data = await response.json();
-
-    const names = (data.businesses || [])
-      .filter(b => !exclude.includes(b.categories?.[0]?.alias))
-      .map(b => b.name);
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ names })
-    };
-
-  } catch (err) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: err.message })
-    };
-  }
-}
+  <script src="script.js"></script>
+</body>
