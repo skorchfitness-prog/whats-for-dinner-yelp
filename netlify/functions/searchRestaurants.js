@@ -6,13 +6,13 @@ export async function handler(event) {
     if (!apiKey) {
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: "Missing YELP_API_KEY" }),
+        body: JSON.stringify({ error: "Missing YELP_API_KEY env var" }),
       };
     }
 
     const params = event.queryStringParameters || {};
     const zip = (params.zip || "").trim();
-    const radiusMiles = Number(params.radiusMiles || 3);
+    const radiusMiles = Number(params.radiusMiles || params.radius || 3);
     const excludeRaw = (params.exclude || "").trim();
 
     if (!zip) {
@@ -23,7 +23,7 @@ export async function handler(event) {
     }
 
     const exclude = excludeRaw
-      ? excludeRaw.split(",").map(s => s.trim().toLowerCase())
+      ? excludeRaw.split(",").map(s => s.trim().toLowerCase()).filter(Boolean)
       : [];
 
     const radiusMeters = Math.min(
@@ -31,36 +31,46 @@ export async function handler(event) {
       Math.max(500, Math.round(radiusMiles * 1609.34))
     );
 
-    const url = new URL("https://api.yelp.com/v3/businesses/search");
-    url.search = new URLSearchParams({
-      location: zip,
-      radius: String(radiusMeters),
-      categories: "restaurants",
-      limit: "30",
-      sort_by: "rating",
-    });
+    const url =
+      "https://api.yelp.com/v3/businesses/search?" +
+      new URLSearchParams({
+        location: zip,
+        radius: String(radiusMeters),
+        categories: "restaurants",
+        limit: "30",
+        sort_by: "rating",
+      }).toString();
 
-    const response = await fetch(url.toString(), {
+    const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${apiKey}`,
       },
     });
 
-    const data = await response.json();
+    const text = await response.text();
+
+    if (!response.ok) {
+      return {
+        statusCode: response.status,
+        body: JSON.stringify({ error: "Yelp API error", details: text }),
+      };
+    }
+
+    const data = JSON.parse(text);
 
     let names = (data.businesses || []).map(b => b.name);
 
     if (exclude.length) {
-      names = names.filter(name =>
-        !exclude.some(ex =>
-          name.toLowerCase().includes(ex)
-        )
-      );
+      names = names.filter(name => {
+        const lower = name.toLowerCase();
+        return !exclude.some(word => lower.includes(word));
+      });
     }
 
     return {
       statusCode: 200,
-      body: JSON.stringify(names),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ names }),
     };
   } catch (err) {
     return {

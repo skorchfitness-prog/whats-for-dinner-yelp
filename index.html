@@ -1,0 +1,63 @@
+// netlify/functions/searchrestaurants.js
+import fetch from "node-fetch";
+
+export async function handler(event) {
+  try {
+    const apiKey = process.env.YELP_API_KEY;
+    if (!apiKey) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ error: "Missing YELP_API_KEY" })
+      };
+    }
+
+    const params = event.queryStringParameters || {};
+    const zip = params.zip || "";
+    const radiusMiles = Number(params.radiusMiles) || 3;
+
+    const exclude = (params.exclude || "")
+      .split(",")
+      .map(x => x.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (!zip) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "Missing zip" })
+      };
+    }
+
+    const radiusMeters = Math.min(
+      40000,
+      Math.max(500, Math.round(radiusMiles * 1609.34))
+    );
+
+    const url = `https://api.yelp.com/v3/businesses/search?location=${zip}&radius=${radiusMeters}&categories=restaurants&limit=50`;
+
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${apiKey}` }
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      return { statusCode: response.status, body: text };
+    }
+
+    const data = await response.json();
+
+    const names = (data.businesses || [])
+      .filter(b => !exclude.includes(b.categories?.[0]?.alias))
+      .map(b => b.name);
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ names })
+    };
+
+  } catch (err) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: err.message })
+    };
+  }
+}
